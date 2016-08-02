@@ -1,3 +1,4 @@
+@regpub
 Feature: All registered publishers are called when an event is processed
 
   Scenario: An event is processed

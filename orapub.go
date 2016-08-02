@@ -3,12 +3,20 @@ package orapub
 import (
 	"github.com/xtraclabs/goes"
 	log "github.com/Sirupsen/logrus"
+	"database/sql"
+	_ "github.com/mattn/go-oci8"
 )
 
 type EventProcessor func(e *goes.Event) error
 
+type EventSpec struct {
+	AggregateId string
+	Version int
+}
+
 type OraPub struct {
 	eventProcessors map[string]EventProcessor
+	db      *sql.DB
 }
 
 
@@ -31,4 +39,51 @@ func (op *OraPub) ProcessEvent(event *goes.Event) {
 	}
 }
 
+//Connect to elcaro - connect string looks like user/password@//host:port/service
+func (op *OraPub) Connect(connectStr string) error {
+	db, err := sql.Open("oci8", connectStr)
+	if err != nil {
+		log.Warnf("Error connecting to oracle: %s", err.Error())
+		return err
+	}
+
+	//Are we really in an ok state for starters?
+	err = db.Ping()
+	if err != nil {
+		log.Infof("Error connecting to oracle: %s", err.Error())
+		return err
+	}
+
+	op.db = db
+
+	return nil
+}
+
+func (op *OraPub) PollEvents()([]EventSpec, error) {
+	var eventSpecs []EventSpec
+
+	rows, err := op.db.Query(`select aggregate_id, version from publish order by version`)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	var version int
+	var aggID string
+
+	for rows.Next() {
+		rows.Scan(&aggID, &version)
+		es := EventSpec{
+			AggregateId:aggID,
+			Version:version,
+		}
+
+		eventSpecs = append(eventSpecs, es)
+	}
+
+	err = rows.Err()
+
+	return eventSpecs,err
+}
 
