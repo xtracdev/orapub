@@ -125,10 +125,7 @@ func (op *OraPub) RetrieveEventDetail(aggregateId string, version int) (*goes.Ev
 	if err != nil {
 		return nil, err
 	}
-
-	log.Infof("scanned typecode %s", typecode)
-	log.Infof("scanned bytes %v", payload)
-
+	
 	eventPtr := &goes.Event{
 		Source:   aggregateId,
 		Version:  version,
