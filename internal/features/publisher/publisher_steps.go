@@ -2,9 +2,9 @@ package publisher
 
 import (
 	. "github.com/lsegal/gucumber"
+	"github.com/stretchr/testify/assert"
 	"github.com/xtraclabs/goes"
 	"github.com/xtraclabs/orapub"
-	"github.com/stretchr/testify/assert"
 )
 
 func init() {
@@ -18,17 +18,17 @@ func init() {
 		return nil
 	}
 
-	var barProcessor =  func(event *goes.Event) error {
+	var barProcessor = func(event *goes.Event) error {
 		barCalled = true
 		return nil
 	}
 
 	Given(`^An event to be published$`, func() {
 		event = goes.Event{
-			Source:"xxx",
-			Version: 123,
-			Payload: "the payload",
-			TypeCode:"tc",
+			Source:   "xxx",
+			Version:  123,
+			Payload:  "the payload",
+			TypeCode: "tc",
 		}
 	})
 
@@ -48,4 +48,3 @@ func init() {
 	})
 
 }
-
