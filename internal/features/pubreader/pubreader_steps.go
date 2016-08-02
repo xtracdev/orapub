@@ -15,6 +15,7 @@ func init() {
 	var aggregateID string
 	var specs []orapub.EventSpec
 	var pollErr error
+	var eventPublisher *orapub.OraPub
 
 	Given(`^Some freshly stored events$`, func() {
 		os.Setenv("ES_PUBLISH_EVENTS", "1")
@@ -43,6 +44,8 @@ func init() {
 
 		specs, pollErr = publisher.PollEvents()
 		assert.Nil(T,pollErr)
+
+		eventPublisher = publisher
 	})
 
 	Then(`^The freshly stored events are returned$`, func() {
@@ -57,6 +60,11 @@ func init() {
 
 		assert.True(T, foundIt)
 		assert.Equal(T, 3, aggCount)
+	})
+
+	And(`^published events can be removed from the publish table$`, func() {
+		err := eventPublisher.DeleteProcessedEvents(specs)
+		assert.Nil(T,err, "Error when deleting processed events")
 	})
 
 }

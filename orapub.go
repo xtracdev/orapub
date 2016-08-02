@@ -87,3 +87,15 @@ func (op *OraPub) PollEvents()([]EventSpec, error) {
 	return eventSpecs,err
 }
 
+func (op *OraPub) DeleteProcessedEvents(specs []EventSpec) error {
+	for _, es := range specs {
+		_, err := op.db.Query("delete from publish where aggregate_id = :1 and version = :2",
+			es.AggregateId, es.Version)
+		if err != nil {
+			log.Warn("Error deleting aggregate, version %s, %d: %s", es.AggregateId, es.Version, err.Error())
+		}
+	}
+
+	return nil
+}
+
