@@ -8,7 +8,11 @@ import (
 	_ "github.com/mattn/go-oci8"
 	"time"
 	"crypto/rand"
+	"github.com/xtraclabs/orapub"
+	"github.com/xtraclabs/goes"
 )
+
+var connectStr = "esusr/password@//localhost:1521/xe.oracle.docker"
 
 type feedState struct {
 	feedid string
@@ -135,7 +139,7 @@ func main() {
 	log.Info("pub2feed alive")
 
 	log.Info("connect to database")
-	var connectStr = fmt.Sprintf("%s/%s@//%s:%s/%s", "esusr", "password", "localhost", "1521", "xe.oracle.docker")
+
 	db, err := connectToDB(connectStr)
 	if err != nil {
 		log.Fatalf("Error connecting to db: %s", err.Error())
@@ -150,6 +154,15 @@ func main() {
 }
 
 func processRecords(db *sql.DB) error {
+
+	publisher := orapub.NewOraPub()
+	err := publisher.Connect(connectStr)
+	if err != nil {
+		log.Warnf("Unable to connect publisher reader")
+		return err
+	}
+
+
 
 	fs,err := readFeedState(db)
 	if err != nil {
@@ -166,15 +179,46 @@ func processRecords(db *sql.DB) error {
 		return err
 	}
 
+	publisher.RegisterEventProcessor("feed data writer", func(event *goes.Event) error {
+		_,err = db.Exec("insert into feed_data (feedid, aggregate_id, version,typecode, payload) values(:1,:2,:3,:4,:5)",
+			fs.feedid, event.Source, event.Version, event.TypeCode, event.Payload)
+		return err
+	})
+
 	for {
+
+		time.Sleep(5 * time.Second)
+
 		log.Infof("Feed state - %v",*fs)
 		fs,err = updateFeedStateIfNeeded(db, fs)
 		if err != nil {
 			log.Warnf("Unable to update feed state: %s",err.Error())
-			time.Sleep(5 * time.Second)
 			continue
 		}
+
+		es, err := publisher.PollEvents()
+		if err != nil {
+			log.Warnf("Error polling for events: %s", err.Error())
+			continue
+		}
+
+		log.Infof("read %d events", len(es))
+		for _,eventContext := range es {
+
+			e, err := publisher.RetrieveEventDetail(eventContext.AggregateId, eventContext.Version)
+			if err != nil {
+				log.Warnf("Error reading event to process (%v): %s",eventContext, err)
+				continue
+			}
+
+			//TODO - make error codes available to interested users of OraPub
+			publisher.ProcessEvent(e)
+		}
+
+		err = publisher.DeleteProcessedEvents(es)
+		if err != nil {
+			log.Warnf("Error cleaning up processed events: %s", err)
+		}
 		
-		time.Sleep(5 * time.Second)
 	}
 }
