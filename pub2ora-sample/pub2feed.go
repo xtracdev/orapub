@@ -180,6 +180,7 @@ func processRecords(db *sql.DB) error {
 	}
 
 	publisher.RegisterEventProcessor("feed data writer", func(event *goes.Event) error {
+		log.Infof("processing %s.%d", event.Source, event.Version)
 		_,err = db.Exec("insert into feed_data (feedid, aggregate_id, version,typecode, payload) values(:1,:2,:3,:4,:5)",
 			fs.feedid, event.Source, event.Version, event.TypeCode, event.Payload)
 		return err
@@ -187,7 +188,7 @@ func processRecords(db *sql.DB) error {
 
 	for {
 
-		time.Sleep(5 * time.Second)
+
 
 		log.Infof("Feed state - %v",*fs)
 		fs,err = updateFeedStateIfNeeded(db, fs)
@@ -202,7 +203,7 @@ func processRecords(db *sql.DB) error {
 			continue
 		}
 
-		log.Infof("read %d events", len(es))
+		log.Infof("Process %d events", len(es))
 		for _,eventContext := range es {
 
 			e, err := publisher.RetrieveEventDetail(eventContext.AggregateId, eventContext.Version)
@@ -215,9 +216,15 @@ func processRecords(db *sql.DB) error {
 			publisher.ProcessEvent(e)
 		}
 
+		log.Infof("Deleting %d events", len(es))
 		err = publisher.DeleteProcessedEvents(es)
 		if err != nil {
 			log.Warnf("Error cleaning up processed events: %s", err)
+		}
+
+		if len(es) == 0 {
+			log.Infof("Nothing to do... time for a 5 second sleep")
+			time.Sleep(5 * time.Second)
 		}
 		
 	}
