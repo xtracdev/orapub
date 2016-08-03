@@ -125,7 +125,7 @@ func (op *OraPub) RetrieveEventDetail(aggregateId string, version int) (*goes.Ev
 	if err != nil {
 		return nil, err
 	}
-	
+
 	eventPtr := &goes.Event{
 		Source:   aggregateId,
 		Version:  version,
