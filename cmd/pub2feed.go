@@ -79,24 +79,56 @@ func uuid() (string,error) {
 
 }
 
-func initFeedState(db *sql.DB) error {
+func initFeedState(db *sql.DB) (*feedState,error) {
 	now := time.Now()
 	urn,err := uuid()
 	if err != nil {
-		return err
+		return nil,err
 	}
 
 	//Being a little sloppy here - a merge would be better, and the below should probably be in
 	//a single transaction too.
 	_,err = db.Exec("delete from feed_state")
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	fs := &feedState{
+		feedid:urn,
+		year:now.Year(),
+		month:int(now.Month()),
+		day:now.Day(),
+		hour:now.Hour(),
 	}
 
 	_,err = db.Exec("insert into feed_state (feedid, year, month, day, hour) values (:1,:2,:3,:4,:5)",
-		urn,now.Year(),now.Month(),now.Day(),now.Hour())
+		fs.feedid,fs.year,fs.month,fs.day,fs.hour)
 
-	return err
+	return fs,err
+}
+
+func updateFeedStateIfNeeded(db *sql.DB, fs *feedState) (*feedState,error) {
+	now := time.Now().Truncate(time.Hour)
+
+	var updateNeeded bool
+
+	if(now.Year() > fs.year) {
+		updateNeeded = true
+	} else if (int(now.Month()) > fs.month) {
+		updateNeeded = true
+	} else if (now.Day() > fs.day) {
+		updateNeeded = true
+	} else if (now.Hour() > fs.hour) {
+		updateNeeded = true
+	}
+
+	if updateNeeded == false {
+		return fs,nil
+	}
+
+	log.Info("updating feed state")
+
+	return initFeedState(db)
 }
 
 func main() {
@@ -111,29 +143,38 @@ func main() {
 
 	defer db.Close()
 
-	processRecords(db)
+	err = processRecords(db)
+	if err != nil {
+		log.Fatalf("Unable to process records: %s", err.Error())
+	}
 }
 
-func processRecords(db *sql.DB) {
-	for {
-		time.Sleep(5 * time.Second)
-		fs,err := readFeedState(db)
+func processRecords(db *sql.DB) error {
+
+	fs,err := readFeedState(db)
+	if err != nil {
+		log.Warnf("Error reading feed state: %s", err.Error())
+		return err
+	}
+
+	if fs == nil {
+		log.Info("No feed state read")
+		fs,err = initFeedState(db)
 		if err != nil {
-			log.Warnf("Error readubg feed state: %s", err.Error())
-			continue
+			log.Warnf("Error initializing feed state: %s", err.Error())
 		}
+		return err
+	}
 
-		if fs == nil {
-			log.Info("No feed state read")
-			err = initFeedState(db)
-			if err != nil {
-				log.Warnf("Error initializing feed state: %s", err.Error())
-			}
-			continue
-		}
-
+	for {
 		log.Infof("Feed state - %v",*fs)
-
+		fs,err = updateFeedStateIfNeeded(db, fs)
+		if err != nil {
+			log.Warnf("Unable to update feed state: %s",err.Error())
+			time.Sleep(5 * time.Second)
+			continue
+		}
 		
+		time.Sleep(5 * time.Second)
 	}
 }
