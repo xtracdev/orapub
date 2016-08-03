@@ -153,6 +153,13 @@ func main() {
 	}
 }
 
+func min(a, b int) int {
+	if a <= b {
+		return a
+	}
+	return b
+}
+
 func processRecords(db *sql.DB) error {
 
 	publisher := orapub.NewOraPub()
@@ -197,32 +204,40 @@ func processRecords(db *sql.DB) error {
 			continue
 		}
 
-		es, err := publisher.PollEvents()
+		polledEventsSpec, err := publisher.PollEvents()
 		if err != nil {
 			log.Warnf("Error polling for events: %s", err.Error())
 			continue
 		}
 
-		log.Infof("Process %d events", len(es))
-		for _,eventContext := range es {
+		log.Infof("Process %d events", len(polledEventsSpec))
 
-			e, err := publisher.RetrieveEventDetail(eventContext.AggregateId, eventContext.Version)
-			if err != nil {
-				log.Warnf("Error reading event to process (%v): %s",eventContext, err)
-				continue
+		for i :=0; i < len(polledEventsSpec); i += 100 {
+
+			batch := polledEventsSpec[i:min(i + 100, len(polledEventsSpec))]
+			log.Infof("===> processing batch with starting index %d batch size %d", i, len(batch))
+
+			for _, eventContext := range batch {
+
+				e, err := publisher.RetrieveEventDetail(eventContext.AggregateId, eventContext.Version)
+				if err != nil {
+					log.Warnf("Error reading event to process (%v): %s", eventContext, err)
+					continue
+				}
+
+				//TODO - make error codes available to interested users of OraPub
+				publisher.ProcessEvent(e)
 			}
 
-			//TODO - make error codes available to interested users of OraPub
-			publisher.ProcessEvent(e)
+			log.Infof("Deleting %d events", len(batch))
+			err = publisher.DeleteProcessedEvents(batch)
+			if err != nil {
+				log.Warnf("Error cleaning up processed events: %s", err)
+			}
+
 		}
 
-		log.Infof("Deleting %d events", len(es))
-		err = publisher.DeleteProcessedEvents(es)
-		if err != nil {
-			log.Warnf("Error cleaning up processed events: %s", err)
-		}
-
-		if len(es) == 0 {
+		if len(polledEventsSpec) == 0 {
 			log.Infof("Nothing to do... time for a 5 second sleep")
 			time.Sleep(5 * time.Second)
 		}
