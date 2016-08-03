@@ -82,18 +82,30 @@ func uuid() (string, error) {
 
 }
 
-func initFeedState(db *sql.DB) (*feedState, error) {
+//TODO - group this inside a transaction
+func initFeedState(db *sql.DB, last *feedState) (*feedState, error) {
 	now := time.Now()
 	urn, err := uuid()
 	if err != nil {
 		return nil, err
 	}
 
-	//Being a little sloppy here - a merge would be better, and the below should probably be in
-	//a single transaction too.
-	_, err = db.Exec("delete from feed_state")
+	result, err := db.Exec("delete from feed_state")
 	if err != nil {
 		return nil, err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+
+	if last == nil && rows == 0 {
+		log.Infof("Initializing feeds with %s, no previous feed", urn)
+		_, err = db.Exec("insert into feeds (feedid, previous) values (:1,null)", urn)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	fs := &feedState{
@@ -106,6 +118,13 @@ func initFeedState(db *sql.DB) (*feedState, error) {
 
 	_, err = db.Exec("insert into feed_state (feedid, year, month, day, hour) values (:1,:2,:3,:4,:5)",
 		fs.feedid, fs.year, fs.month, fs.day, fs.hour)
+	if err != nil {
+		return nil, err
+	}
+
+	if last != nil {
+		_, err = db.Exec("insert into feeds (feedid, previous) values (:1,:2)", urn, last.feedid)
+	}
 
 	return fs, err
 }
@@ -131,7 +150,7 @@ func updateFeedStateIfNeeded(db *sql.DB, fs *feedState) (*feedState, error) {
 
 	log.Info("updating feed state")
 
-	return initFeedState(db)
+	return initFeedState(db, fs)
 }
 
 func main() {
@@ -176,11 +195,12 @@ func processRecords(db *sql.DB) error {
 
 	if fs == nil {
 		log.Info("No feed state read")
-		fs, err = initFeedState(db)
+		fs, err = initFeedState(db, nil)
 		if err != nil {
 			log.Warnf("Error initializing feed state: %s", err.Error())
+			return err
 		}
-		return err
+
 	}
 
 	publisher.RegisterEventProcessor("feed data writer", func(event *goes.Event) error {

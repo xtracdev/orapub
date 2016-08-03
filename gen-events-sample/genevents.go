@@ -7,15 +7,21 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 )
 
 func main() {
 
-	if len(os.Args) != 2 {
-		log.Fatalf("Number of aggregate not specified on command line (go run genevents.go <num aggregates>")
+	if len(os.Args) != 3 {
+		log.Fatalf("Usage: go run genevents.go <num aggregates> <delay ms>")
 	}
 
 	numAggregates, err := strconv.Atoi(os.Args[1])
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	delay, err := strconv.Atoi(os.Args[2])
 	if err != nil {
 		log.Fatal(err.Error())
 	}
@@ -41,5 +47,8 @@ func main() {
 		if err != nil {
 			log.Fatalf("Error storing events: %s", err.Error())
 		}
+
+		log.Println("sleep")
+		time.Sleep(time.Duration(delay) * time.Millisecond)
 	}
 }
