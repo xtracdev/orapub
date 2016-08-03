@@ -1,11 +1,11 @@
 package main
 
 import (
-	"os"
-	"github.com/xtraclabs/goessample/testagg"
 	"fmt"
+	"github.com/xtraclabs/goessample/testagg"
 	"github.com/xtraclabs/oraeventstore"
 	"log"
+	"os"
 	"strconv"
 )
 
@@ -29,12 +29,12 @@ func main() {
 
 	for i := 0; i < numAggregates; i++ {
 
-		ta,_ := testagg.NewTestAgg(
-			fmt.Sprintf("foo%d",i),
-			fmt.Sprintf("bar%d",i),
-			fmt.Sprintf("baz%d",i))
+		ta, _ := testagg.NewTestAgg(
+			fmt.Sprintf("foo%d", i),
+			fmt.Sprintf("bar%d", i),
+			fmt.Sprintf("baz%d", i))
 		for j := 1; j <= 5; j++ {
-			ta.UpdateFoo(fmt.Sprintf("foo%d-%d",i,j))
+			ta.UpdateFoo(fmt.Sprintf("foo%d-%d", i, j))
 		}
 
 		err = ta.Store(eventStore)

@@ -1,28 +1,27 @@
 package main
 
-
 import (
-	log "github.com/Sirupsen/logrus"
-	"fmt"
-	"database/sql"
-	_ "github.com/mattn/go-oci8"
-	"time"
 	"crypto/rand"
-	"github.com/xtraclabs/orapub"
+	"database/sql"
+	"fmt"
+	log "github.com/Sirupsen/logrus"
+	_ "github.com/mattn/go-oci8"
 	"github.com/xtraclabs/goes"
+	"github.com/xtraclabs/orapub"
+	"time"
 )
 
 var connectStr = "esusr/password@//localhost:1521/xe.oracle.docker"
 
 type feedState struct {
 	feedid string
-	year int
-	month int
-	day int
-	hour int
+	year   int
+	month  int
+	day    int
+	hour   int
 }
 
-func connectToDB(connectStr string)(*sql.DB,error) {
+func connectToDB(connectStr string) (*sql.DB, error) {
 	db, err := sql.Open("oci8", connectStr)
 	if err != nil {
 		log.Warnf("Error connecting to oracle: %s", err.Error())
@@ -39,7 +38,7 @@ func connectToDB(connectStr string)(*sql.DB,error) {
 	return db, nil
 }
 
-func readFeedState(db *sql.DB)(*feedState, error) {
+func readFeedState(db *sql.DB) (*feedState, error) {
 	rows, err := db.Query(`select feedid, year, month, day, hour from feed_state`)
 	if err != nil {
 		return nil, err
@@ -56,14 +55,14 @@ func readFeedState(db *sql.DB)(*feedState, error) {
 	var fs *feedState
 
 	for rows.Next() {
-		rows.Scan(&feedid,&year,&month,&day,&hour)
+		rows.Scan(&feedid, &year, &month, &day, &hour)
 
 		fs = &feedState{
 			feedid: feedid,
-			year:year,
-			month:month,
-			day:day,
-			hour:hour,
+			year:   year,
+			month:  month,
+			day:    day,
+			hour:   hour,
 		}
 	}
 
@@ -72,62 +71,62 @@ func readFeedState(db *sql.DB)(*feedState, error) {
 	return fs, err
 }
 
-func uuid() (string,error) {
+func uuid() (string, error) {
 	b := make([]byte, 16)
 	_, err := rand.Read(b)
 	if err != nil {
-		return "",err
+		return "", err
 	}
 
-	return fmt.Sprintf("%X-%X-%X-%X-%X", b[0:4], b[4:6], b[6:8], b[8:10], b[10:]),nil
+	return fmt.Sprintf("%X-%X-%X-%X-%X", b[0:4], b[4:6], b[6:8], b[8:10], b[10:]), nil
 
 }
 
-func initFeedState(db *sql.DB) (*feedState,error) {
+func initFeedState(db *sql.DB) (*feedState, error) {
 	now := time.Now()
-	urn,err := uuid()
+	urn, err := uuid()
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 
 	//Being a little sloppy here - a merge would be better, and the below should probably be in
 	//a single transaction too.
-	_,err = db.Exec("delete from feed_state")
+	_, err = db.Exec("delete from feed_state")
 	if err != nil {
 		return nil, err
 	}
 
 	fs := &feedState{
-		feedid:urn,
-		year:now.Year(),
-		month:int(now.Month()),
-		day:now.Day(),
-		hour:now.Hour(),
+		feedid: urn,
+		year:   now.Year(),
+		month:  int(now.Month()),
+		day:    now.Day(),
+		hour:   now.Hour(),
 	}
 
-	_,err = db.Exec("insert into feed_state (feedid, year, month, day, hour) values (:1,:2,:3,:4,:5)",
-		fs.feedid,fs.year,fs.month,fs.day,fs.hour)
+	_, err = db.Exec("insert into feed_state (feedid, year, month, day, hour) values (:1,:2,:3,:4,:5)",
+		fs.feedid, fs.year, fs.month, fs.day, fs.hour)
 
-	return fs,err
+	return fs, err
 }
 
-func updateFeedStateIfNeeded(db *sql.DB, fs *feedState) (*feedState,error) {
+func updateFeedStateIfNeeded(db *sql.DB, fs *feedState) (*feedState, error) {
 	now := time.Now().Truncate(time.Hour)
 
 	var updateNeeded bool
 
-	if(now.Year() > fs.year) {
+	if now.Year() > fs.year {
 		updateNeeded = true
-	} else if (int(now.Month()) > fs.month) {
+	} else if int(now.Month()) > fs.month {
 		updateNeeded = true
-	} else if (now.Day() > fs.day) {
+	} else if now.Day() > fs.day {
 		updateNeeded = true
-	} else if (now.Hour() > fs.hour) {
+	} else if now.Hour() > fs.hour {
 		updateNeeded = true
 	}
 
 	if updateNeeded == false {
-		return fs,nil
+		return fs, nil
 	}
 
 	log.Info("updating feed state")
@@ -169,9 +168,7 @@ func processRecords(db *sql.DB) error {
 		return err
 	}
 
-
-
-	fs,err := readFeedState(db)
+	fs, err := readFeedState(db)
 	if err != nil {
 		log.Warnf("Error reading feed state: %s", err.Error())
 		return err
@@ -179,7 +176,7 @@ func processRecords(db *sql.DB) error {
 
 	if fs == nil {
 		log.Info("No feed state read")
-		fs,err = initFeedState(db)
+		fs, err = initFeedState(db)
 		if err != nil {
 			log.Warnf("Error initializing feed state: %s", err.Error())
 		}
@@ -187,20 +184,18 @@ func processRecords(db *sql.DB) error {
 	}
 
 	publisher.RegisterEventProcessor("feed data writer", func(event *goes.Event) error {
-		log.Infof("processing %s.%d", event.Source, event.Version)
-		_,err = db.Exec("insert into feed_data (feedid, aggregate_id, version,typecode, payload) values(:1,:2,:3,:4,:5)",
+		//log.Infof("processing %s.%d", event.Source, event.Version)
+		_, err = db.Exec("insert into feed_data (feedid, aggregate_id, version,typecode, payload) values(:1,:2,:3,:4,:5)",
 			fs.feedid, event.Source, event.Version, event.TypeCode, event.Payload)
 		return err
 	})
 
 	for {
 
-
-
-		log.Infof("Feed state - %v",*fs)
-		fs,err = updateFeedStateIfNeeded(db, fs)
+		log.Infof("Feed state - %v", *fs)
+		fs, err = updateFeedStateIfNeeded(db, fs)
 		if err != nil {
-			log.Warnf("Unable to update feed state: %s",err.Error())
+			log.Warnf("Unable to update feed state: %s", err.Error())
 			continue
 		}
 
@@ -212,9 +207,9 @@ func processRecords(db *sql.DB) error {
 
 		log.Infof("Process %d events", len(polledEventsSpec))
 
-		for i :=0; i < len(polledEventsSpec); i += 100 {
+		for i := 0; i < len(polledEventsSpec); i += 100 {
 
-			batch := polledEventsSpec[i:min(i + 100, len(polledEventsSpec))]
+			batch := polledEventsSpec[i:min(i+100, len(polledEventsSpec))]
 			log.Infof("===> processing batch with starting index %d batch size %d", i, len(batch))
 
 			for _, eventContext := range batch {
@@ -241,6 +236,6 @@ func processRecords(db *sql.DB) error {
 			log.Infof("Nothing to do... time for a 5 second sleep")
 			time.Sleep(5 * time.Second)
 		}
-		
+
 	}
 }

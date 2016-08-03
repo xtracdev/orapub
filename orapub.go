@@ -62,7 +62,8 @@ func (op *OraPub) Connect(connectStr string) error {
 func (op *OraPub) PollEvents() ([]EventSpec, error) {
 	var eventSpecs []EventSpec
 
-	rows, err := op.db.Query(`select aggregate_id, version from publish order by version`)
+	//Select a batch of events, but no more than 500
+	rows, err := op.db.Query(`select aggregate_id, version from publish where rownum < 501 order by version`)
 	if err != nil {
 		return nil, err
 	}
