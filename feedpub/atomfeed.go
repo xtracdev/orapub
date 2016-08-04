@@ -34,7 +34,26 @@ func connectToDB(connectStr string) (*sql.DB, error) {
 }
 
 func feedHandler(rw http.ResponseWriter, req *http.Request) {
-	rw.Write([]byte("handle this\n"))
+	feedid := mux.Vars(req)["feedid"]
+	if feedid == "" {
+		http.Error(rw, "No feed id in uri", http.StatusInternalServerError)
+		return
+	}
+
+	//Look up previous
+	feedIdFromDB, previousFeed, err := lookupFeed(feedid)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if feedIdFromDB == "" {
+		http.Error(rw, "", http.StatusNotFound)
+		return
+	}
+
+	rw.Write([]byte(previousFeed))
+
 }
 
 func currentFeed() (string, error) {
@@ -56,23 +75,24 @@ func currentFeed() (string, error) {
 	return feedid, err
 }
 
-func previousFeed(feedid string) (string, error) {
-	rows, err := db.Query(`select previous from feeds where feedid = :1`, feedid)
+func lookupFeed(id string) (string, string, error) {
+	rows, err := db.Query(`select feedid, previous from feeds where feedid = :1`, id)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	defer rows.Close()
 
+	var feedid string
 	var previous string
 
 	for rows.Next() {
-		rows.Scan(&previous)
+		rows.Scan(&feedid, &previous)
 	}
 
 	err = rows.Err()
 
-	return previous, err
+	return feedid, previous, err
 }
 
 func topHandler(rw http.ResponseWriter, req *http.Request) {
@@ -104,7 +124,7 @@ func topHandler(rw http.ResponseWriter, req *http.Request) {
 		Rel:  "via",
 	}
 
-	previousFeed, err := previousFeed(feedid)
+	_, previousFeed, err := lookupFeed(feedid)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
