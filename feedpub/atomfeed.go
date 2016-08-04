@@ -1,21 +1,18 @@
 package main
 
 import (
-	log "github.com/Sirupsen/logrus"
-	"github.com/gorilla/mux"
-	"github.com/gorilla/feeds"
-	"net/http"
 	"database/sql"
+	log "github.com/Sirupsen/logrus"
+	"github.com/gorilla/feeds"
+	"github.com/gorilla/mux"
 	_ "github.com/mattn/go-oci8"
+	"net/http"
 	"time"
 )
 
 var db *sql.DB
 
-
 var connectStr = "esusr/password@//localhost:1521/xe.oracle.docker"
-
-
 
 func connectToDB(connectStr string) (*sql.DB, error) {
 	db, err := sql.Open("oci8", connectStr)
@@ -48,7 +45,6 @@ func currentFeed() (string, error) {
 
 	var feedid string
 
-
 	for rows.Next() {
 		rows.Scan(&feedid)
 	}
@@ -62,7 +58,7 @@ func topHandler(rw http.ResponseWriter, req *http.Request) {
 
 	feedid, err := currentFeed()
 	if err != nil {
-		http.Error(rw,err.Error(),http.StatusInternalServerError)
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -72,26 +68,29 @@ func topHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	feed := &feeds.AtomFeed{
-		Title:"Event store feed",
-		Id:feedid,
-		Updated:time.Now().Truncate(time.Hour).Format(time.RFC3339),
+		Title:   "Event store feed",
+		Id:      feedid,
+		Updated: time.Now().Truncate(time.Hour).Format(time.RFC3339),
+		Link: &feeds.AtomLink{
+			Rel:  "self",
+			Href: "http://localhost:4000/notifications/recent",
+		},
 	}
 
 	atom, err := feeds.ToXML(feed)
 	rw.Write([]byte(atom))
 }
 
-
 func main() {
 	var err error
-	db,err = connectToDB(connectStr)
+	db, err = connectToDB(connectStr)
 	if err != nil {
 		log.Fatalf("Error connecting to database: %s", err.Error())
 	}
 
 	r := mux.NewRouter()
+	r.HandleFunc("/notifications/recent", topHandler)
 	r.HandleFunc("/notifications/{feedid}", feedHandler)
-	r.HandleFunc("/notifications", topHandler)
 
 	err = http.ListenAndServe(":4000", r)
 	if err != nil {
