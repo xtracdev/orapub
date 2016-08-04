@@ -10,11 +10,14 @@ import (
 	"golang.org/x/tools/blog/atom"
 	"net/http"
 	"time"
+	"encoding/base64"
+	"errors"
 )
 
 var db *sql.DB
 
 var connectStr = "esusr/password@//localhost:1521/xe.oracle.docker"
+var ErrNoSuchFeed = errors.New("Unknown feed specified")
 
 func connectToDB(connectStr string) (*sql.DB, error) {
 	db, err := sql.Open("oci8", connectStr)
@@ -52,6 +55,50 @@ func lastUpdateForFeed(feedid string) (time.Time, error) {
 	return lastUpdate, err
 }
 
+func addItemsToFeed(feed *atom.Feed) error {
+
+	log.Infof("reading feed_data for feed %s", feed.ID)
+	rows, err := db.Query(`select event_time, aggregate_id, version, typecode, payload from feed_data where feedid = :1 order by id desc`,
+				feed.ID)
+	if err != nil {
+		return err
+	}
+
+	defer rows.Close()
+
+	var eventTime time.Time
+	var aggregateID string
+	var version int
+	var typecode string
+	var payload []byte
+
+	log.Info("scanning rows")
+	for rows.Next() {
+		rows.Scan(&eventTime,&aggregateID,&version,&typecode,&payload)
+
+		encodedPayload := base64.StdEncoding.EncodeToString([]byte(payload))
+
+		content := &atom.Text{
+			Type: typecode,
+			Body: encodedPayload,
+		}
+
+		entry := &atom.Entry{
+			Title:"event",
+			ID: fmt.Sprintf("urn:esid:%s:%d", aggregateID, version),
+			Published: atom.TimeStr(eventTime.Format(time.RFC3339)),
+			Content:content,
+		}
+
+		feed.Entry = append(feed.Entry, entry)
+
+	}
+
+	err = rows.Err()
+
+	return nil
+}
+
 func feedHandler(rw http.ResponseWriter, req *http.Request) {
 
 	feedid := mux.Vars(req)["feedid"]
@@ -63,6 +110,7 @@ func feedHandler(rw http.ResponseWriter, req *http.Request) {
 	log.Infof("processing request for feed %s", feedid)
 
 	//Look up previous
+	log.Infof("look up feed %s", feedid)
 	feedIdFromDB, previousFeed, err := lookupFeed(feedid)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
@@ -119,6 +167,8 @@ func feedHandler(rw http.ResponseWriter, req *http.Request) {
 		})
 	}
 
+	addItemsToFeed(&feed)
+
 	out, err := xml.Marshal(&feed)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
@@ -149,6 +199,8 @@ func currentFeed() (string, error) {
 }
 
 func lookupFeed(id string) (string, string, error) {
+
+
 	rows, err := db.Query(`select feedid, previous from feeds where feedid = :1`, id)
 	if err != nil {
 		return "", "", err
@@ -157,15 +209,19 @@ func lookupFeed(id string) (string, string, error) {
 	defer rows.Close()
 
 	var feedid string
-	var previous string
+	var previous sql.NullString
 
+	log.Infof("Read query results")
 	for rows.Next() {
 		rows.Scan(&feedid, &previous)
 	}
 
+	log.Infof("...previous null? %t", previous.Valid)
+	log.Infof("...read feedid %s, previous %s", feedid, previous.String)
+
 	err = rows.Err()
 
-	return feedid, previous, err
+	return feedid, previous.String, err
 }
 
 func lookupNext(id string) (string, string, error) {
@@ -231,6 +287,8 @@ func topHandler(rw http.ResponseWriter, req *http.Request) {
 	feed.Link = append(feed.Link, self)
 	feed.Link = append(feed.Link, via)
 	feed.Link = append(feed.Link, previous)
+
+	addItemsToFeed(&feed)
 
 	out, err := xml.Marshal(&feed)
 	if err != nil {
