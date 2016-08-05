@@ -25,7 +25,7 @@ func init() {
 		ta.UpdateFoo("i changed my mind")
 		aggregateID = ta.ID
 
-		eventStore, err := oraeventstore.NewPGEventStore("esusr", "password", "xe.oracle.docker", "localhost", "1521")
+		eventStore, err := oraeventstore.NewOraEventStore("esusr", "password", "xe.oracle.docker", "localhost", "1521")
 		if err != nil {
 			log.Infof("Error connecting to oracle: %s", err.Error())
 		}
