@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var db *sql.DB
@@ -140,8 +141,14 @@ func storeEntry(e *atom.Entry) {
 		return
 	}
 
-	_, err = db.Exec("insert into events (aggregate_id, version, typecode, payload) values (:1,:2,:3,:4)",
-		aggId, version, e.Content.Type, payload)
+	ts,err := time.Parse(time.RFC3339Nano, string(e.Published))
+	if err != nil {
+		log.Warn("Error parsing published time: %s", err.Error())
+		return
+	}
+
+	_, err = db.Exec("insert into events (event_time, aggregate_id, version, typecode, payload) values (:1,:2,:3,:4,:5)",
+		ts, aggId, version, e.Content.Type, payload)
 	if err != nil {
 		log.Warnf("Error adding entry to events table: %s", err)
 	}
