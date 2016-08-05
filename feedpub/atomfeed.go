@@ -175,6 +175,14 @@ func feedHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	//For all feeds except recent, we can indicate the page can be cached for a long time,
+	//e.g. 30 days. The recent page is mutable so we don't indicate caching for it. We could
+	//potentially attempt to load it from this method via link traversal.
+	if next != "" {
+		rw.Header().Add("Cache-Control", "max-age=2592000") //Contents are immutable, cache for a month
+		rw.Header().Add("ETag", feedid)
+	}
+
 	rw.Write(out)
 
 }
