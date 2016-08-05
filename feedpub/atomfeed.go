@@ -12,6 +12,13 @@ import (
 	"time"
 	"encoding/base64"
 	"errors"
+	"github.com/alecthomas/kingpin"
+	"os"
+)
+
+var (
+	app = kingpin.New("feedproxy", "Reverse caching proxy for event feed")
+	linkhostport = app.Flag("linkhostport", "host:port to use in link urls").Required().String()
 )
 
 var db *sql.DB
@@ -147,7 +154,7 @@ func feedHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	self := atom.Link{
-		Href: fmt.Sprintf("http://localhost:4000/notifications/%s", feedid),
+		Href: fmt.Sprintf("http://%s/notifications/%s", *linkhostport,feedid),
 		Rel:  "self",
 	}
 
@@ -155,14 +162,14 @@ func feedHandler(rw http.ResponseWriter, req *http.Request) {
 
 	if previousFeed != "" {
 		feed.Link = append(feed.Link, atom.Link{
-			Href: fmt.Sprintf("http://localhost:4000/notifications/%s", previousFeed),
+			Href: fmt.Sprintf("http://%s/notifications/%s", *linkhostport, previousFeed),
 			Rel:  "previous",
 		})
 	}
 
 	if next != "" {
 		feed.Link = append(feed.Link, atom.Link{
-			Href: fmt.Sprintf("http://localhost:4000/notifications/%s", next),
+			Href: fmt.Sprintf("http://%s/notifications/%s", *linkhostport, next),
 			Rel:  "next",
 		})
 	}
@@ -272,12 +279,12 @@ func topHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	self := atom.Link{
-		Href: "http://localhost:4000/notifications/recent",
+		Href: fmt.Sprintf("http://%s/notifications/recent", *linkhostport),
 		Rel:  "self",
 	}
 
 	via := atom.Link{
-		Href: fmt.Sprintf("http://localhost:4000/notifications/%s", feedid),
+		Href: fmt.Sprintf("http://%s/notifications/%s", *linkhostport, feedid),
 		Rel:  "via",
 	}
 
@@ -288,7 +295,7 @@ func topHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	previous := atom.Link{
-		Href: fmt.Sprintf("http://localhost:4000/notifications/%s", previousFeed),
+		Href: fmt.Sprintf("http://%s/notifications/%s", *linkhostport, previousFeed),
 		Rel:  "previous",
 	}
 
@@ -308,6 +315,8 @@ func topHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
+	kingpin.MustParse(app.Parse(os.Args[1:]))
+
 	var err error
 	db, err = connectToDB(connectStr)
 	if err != nil {
