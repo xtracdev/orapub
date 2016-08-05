@@ -86,7 +86,7 @@ func addItemsToFeed(feed *atom.Feed) error {
 		entry := &atom.Entry{
 			Title:"event",
 			ID: fmt.Sprintf("urn:esid:%s:%d", aggregateID, version),
-			Published: atom.TimeStr(eventTime.Format(time.RFC3339)),
+			Published: atom.TimeStr(eventTime.Format(time.RFC3339Nano)),
 			Content:content,
 		}
 
