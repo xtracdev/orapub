@@ -48,6 +48,9 @@ func main() {
 	handler := httpcache.NewHandler(cache, proxy)
 
 	respLogger := httplog.NewResponseLogger(handler)
+        respLogger.DumpRequests = true
+	respLogger.DumpResponses = true
+	respLogger.DumpErrors = true
 
 
 	log.Printf("listening on http://%s", *listen)
