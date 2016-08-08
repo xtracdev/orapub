@@ -28,7 +28,7 @@ func extractPrevious(fb []byte) (string, error) {
 
 	var previous string
 	for _, link := range feed.Link {
-		if link.Rel == "previous" {
+		if link.Rel == "prev-archive" {
 			previous = link.Href
 			break
 		}

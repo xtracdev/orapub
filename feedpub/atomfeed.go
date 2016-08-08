@@ -180,14 +180,14 @@ func feedHandler(rw http.ResponseWriter, req *http.Request) {
 	if previousFeed != "" {
 		feed.Link = append(feed.Link, atom.Link{
 			Href: fmt.Sprintf("http://%s/notifications/%s", *linkhostport, previousFeed),
-			Rel:  "previous",
+			Rel:  "prev-archive",
 		})
 	}
 
 	if next != "" {
 		feed.Link = append(feed.Link, atom.Link{
 			Href: fmt.Sprintf("http://%s/notifications/%s", *linkhostport, next),
-			Rel:  "next",
+			Rel:  "next-archive",
 		})
 	}
 
@@ -303,7 +303,7 @@ func topHandler(rw http.ResponseWriter, req *http.Request) {
 
 	via := atom.Link{
 		Href: fmt.Sprintf("http://%s/notifications/%s", *linkhostport, feedid),
-		Rel:  "via",
+		Rel:  "related",
 	}
 
 	_, previousFeed, err := lookupFeed(feedid)
@@ -314,7 +314,7 @@ func topHandler(rw http.ResponseWriter, req *http.Request) {
 
 	previous := atom.Link{
 		Href: fmt.Sprintf("http://%s/notifications/%s", *linkhostport, previousFeed),
-		Rel:  "previous",
+		Rel:  "prev-archive",
 	}
 
 	feed.Link = append(feed.Link, self)
