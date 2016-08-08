@@ -28,7 +28,7 @@ type EventStoreContent struct {
 	XMLName     xml.Name  `xml:"http://xtraclabs.com/eventstore event"`
 	AggregateId string    `xml:"aggregateId"`
 	Version     int       `xml:"version"`
-	Published   time.Time `xml:"published`
+	Published   time.Time `xml:"published"`
 	TypeCode    string    `xml:"typecode"`
 	Content     string    `xml:"content"`
 }
