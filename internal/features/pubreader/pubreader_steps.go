@@ -2,7 +2,6 @@ package pubreader
 
 import (
 	"fmt"
-	log "github.com/Sirupsen/logrus"
 	. "github.com/lsegal/gucumber"
 	"github.com/stretchr/testify/assert"
 	"github.com/xtraclabs/goessample/testagg"
@@ -26,14 +25,11 @@ func init() {
 		aggregateID = ta.ID
 
 		eventStore, err := oraeventstore.NewOraEventStore("esusr", "password", "xe.oracle.docker", "localhost", "1521")
-		if err != nil {
-			log.Infof("Error connecting to oracle: %s", err.Error())
+		assert.Nil(T, err)
+		if assert.NotNil(T, eventStore) {
+			err = ta.Store(eventStore)
+			assert.Nil(T, err)
 		}
-		assert.NotNil(T, eventStore)
-		assert.Nil(T, err)
-
-		err = ta.Store(eventStore)
-		assert.Nil(T, err)
 	})
 
 	When(`^The publish table is polled for events$`, func() {
