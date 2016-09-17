@@ -2,7 +2,7 @@ package pubreader
 
 import (
 	"fmt"
-	. "github.com/lsegal/gucumber"
+	. "github.com/gucumber/gucumber"
 	"github.com/stretchr/testify/assert"
 	"github.com/xtraclabs/goes/sample/testagg"
 	"github.com/xtraclabs/oraeventstore"

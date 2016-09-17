@@ -1,7 +1,7 @@
 package publisher
 
 import (
-	. "github.com/lsegal/gucumber"
+	. "github.com/gucumber/gucumber"
 	"github.com/stretchr/testify/assert"
 	"github.com/xtraclabs/goes"
 	"github.com/xtraclabs/orapub"
