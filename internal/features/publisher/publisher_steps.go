@@ -3,8 +3,8 @@ package publisher
 import (
 	. "github.com/gucumber/gucumber"
 	"github.com/stretchr/testify/assert"
-	"github.com/xtraclabs/goes"
-	"github.com/xtraclabs/orapub"
+	"github.com/xtracdev/goes"
+	"github.com/xtracdev/orapub"
 )
 
 func init() {

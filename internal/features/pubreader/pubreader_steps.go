@@ -4,9 +4,9 @@ import (
 	"fmt"
 	. "github.com/gucumber/gucumber"
 	"github.com/stretchr/testify/assert"
-	"github.com/xtraclabs/goes/sample/testagg"
-	"github.com/xtraclabs/oraeventstore"
-	"github.com/xtraclabs/orapub"
+	"github.com/xtracdev/goes/sample/testagg"
+	"github.com/xtracdev/oraeventstore"
+	"github.com/xtracdev/orapub"
 	"os"
 )
 

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	_ "github.com/mattn/go-oci8"
-	"github.com/xtraclabs/goes"
+	"github.com/xtracdev/goes"
 )
 
 type EventProcessor func(e *goes.Event) error
