@@ -8,7 +8,10 @@ import (
 	"github.com/xtracdev/oraeventstore"
 	"github.com/xtracdev/orapub"
 	"os"
+	"strings"
 )
+
+
 
 func init() {
 	var aggregateID string
@@ -16,7 +19,41 @@ func init() {
 	var pollErr error
 	var eventPublisher *orapub.OraPub
 
+	var configErrors []string
+
+	user := os.Getenv("FEED_DB_USER")
+	if user == "" {
+		configErrors = append(configErrors, "Configuration missing FEED_DB_USER env variable")
+	}
+
+	password := os.Getenv("FEED_DB_PASSWORD")
+	if password == "" {
+		configErrors = append(configErrors, "Configuration missing FEED_DB_PASSWORD env variable")
+	}
+
+	dbhost := os.Getenv("FEED_DB_HOST")
+	if dbhost == "" {
+		configErrors = append(configErrors, "Configuration missing FEED_DB_HOST env variable")
+	}
+
+	dbPort := os.Getenv("FEED_DB_PORT")
+	if dbPort == "" {
+		configErrors = append(configErrors, "Configuration missing FEED_DB_PORT env variable")
+	}
+
+	dbSvc := os.Getenv("FEED_DB_SVC")
+	if dbSvc == "" {
+		configErrors = append(configErrors, "Configuration missing FEED_DB_SVC env variable")
+	}
+
+
+
 	Given(`^Some freshly stored events$`, func() {
+		if len(configErrors) != 0 {
+			assert.Fail(T,strings.Join(configErrors, "\n"))
+			return
+		}
+
 		os.Setenv("ES_PUBLISH_EVENTS", "1")
 
 		ta, _ := testagg.NewTestAgg("f", "b", "b")
@@ -24,7 +61,7 @@ func init() {
 		ta.UpdateFoo("i changed my mind")
 		aggregateID = ta.ID
 
-		eventStore, err := oraeventstore.NewOraEventStore("esusr", "password", "xe.oracle.docker", "localhost", "1521")
+		eventStore, err := oraeventstore.NewOraEventStore(user, password, dbSvc, dbhost, dbPort)
 		assert.Nil(T, err)
 		if assert.NotNil(T, eventStore) {
 			err = ta.Store(eventStore)
@@ -33,7 +70,7 @@ func init() {
 	})
 
 	When(`^The publish table is polled for events$`, func() {
-		var connectStr = fmt.Sprintf("%s/%s@//%s:%s/%s", "esusr", "password", "localhost", "1521", "xe.oracle.docker")
+		var connectStr = fmt.Sprintf("%s/%s@//%s:%s/%s", user, password, dbhost, dbPort, dbSvc)
 		publisher := orapub.NewOraPub()
 		err := publisher.Connect(connectStr)
 		assert.Nil(T, err)
