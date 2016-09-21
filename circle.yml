@@ -5,10 +5,7 @@ machine:
 dependencies:
   override:
     - >
-    docker run --rm -v "$PWD":/go/src/github.com/xtracdev/orapub
-    -e FEED_DB_USER=$FEED_DB_USER -e FEED_DB_PASSWORD=$FEED_DB_PASSWORD
-    -e FEED_DB_HOST=$DBHOST -e FEED_DB_PORT=$FEED_DB_PORT -e FEED_DB_SVC=$FEED_DB_SVC
-    -w /go/src/github.com/xtracdev/orapub xtracdev/goora bash -c make
+    docker run --rm -v "$PWD":/go/src/github.com/xtracdev/orapub -e FEED_DB_USER=$FEED_DB_USER -e FEED_DB_PASSWORD=$FEED_DB_PASSWORD -e FEED_DB_HOST=$DBHOST -e FEED_DB_PORT=$FEED_DB_PORT -e FEED_DB_SVC=$FEED_DB_SVC -w /go/src/github.com/xtracdev/orapub xtracdev/goora bash -c make
 
 test:
   override:
