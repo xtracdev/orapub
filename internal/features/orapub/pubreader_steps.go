@@ -1,7 +1,8 @@
-package pubreader
+package orapub
 
 import (
 	"fmt"
+	log "github.com/Sirupsen/logrus"
 	. "github.com/gucumber/gucumber"
 	"github.com/stretchr/testify/assert"
 	"github.com/xtracdev/goes/sample/testagg"
@@ -11,7 +12,8 @@ import (
 	"strings"
 )
 
-
+var user, password, dbhost, dbPort, dbSvc string
+var configErrors []string
 
 func init() {
 	var aggregateID string
@@ -19,38 +21,38 @@ func init() {
 	var pollErr error
 	var eventPublisher *orapub.OraPub
 
-	var configErrors []string
+	GlobalContext.BeforeAll(func() {
+		log.Info("Loading global context")
+		user = os.Getenv("FEED_DB_USER")
+		if user == "" {
+			configErrors = append(configErrors, "Configuration missing FEED_DB_USER env variable")
+		}
 
-	user := os.Getenv("FEED_DB_USER")
-	if user == "" {
-		configErrors = append(configErrors, "Configuration missing FEED_DB_USER env variable")
-	}
+		password = os.Getenv("FEED_DB_PASSWORD")
+		if password == "" {
+			configErrors = append(configErrors, "Configuration missing FEED_DB_PASSWORD env variable")
+		}
 
-	password := os.Getenv("FEED_DB_PASSWORD")
-	if password == "" {
-		configErrors = append(configErrors, "Configuration missing FEED_DB_PASSWORD env variable")
-	}
+		dbhost = os.Getenv("FEED_DB_HOST")
+		if dbhost == "" {
+			configErrors = append(configErrors, "Configuration missing FEED_DB_HOST env variable")
+		}
 
-	dbhost := os.Getenv("FEED_DB_HOST")
-	if dbhost == "" {
-		configErrors = append(configErrors, "Configuration missing FEED_DB_HOST env variable")
-	}
+		dbPort = os.Getenv("FEED_DB_PORT")
+		if dbPort == "" {
+			configErrors = append(configErrors, "Configuration missing FEED_DB_PORT env variable")
+		}
 
-	dbPort := os.Getenv("FEED_DB_PORT")
-	if dbPort == "" {
-		configErrors = append(configErrors, "Configuration missing FEED_DB_PORT env variable")
-	}
-
-	dbSvc := os.Getenv("FEED_DB_SVC")
-	if dbSvc == "" {
-		configErrors = append(configErrors, "Configuration missing FEED_DB_SVC env variable")
-	}
-
-
+		dbSvc = os.Getenv("FEED_DB_SVC")
+		if dbSvc == "" {
+			configErrors = append(configErrors, "Configuration missing FEED_DB_SVC env variable")
+		}
+		log.Infof("Config errors after loading global context: %s", strings.Join(configErrors, ", "))
+	})
 
 	Given(`^Some freshly stored events$`, func() {
 		if len(configErrors) != 0 {
-			assert.Fail(T,strings.Join(configErrors, "\n"))
+			assert.Fail(T, strings.Join(configErrors, "\n"))
 			return
 		}
 
@@ -71,8 +73,8 @@ func init() {
 
 	When(`^The publish table is polled for events$`, func() {
 		var connectStr = fmt.Sprintf("%s/%s@//%s:%s/%s", user, password, dbhost, dbPort, dbSvc)
-		publisher := orapub.NewOraPub()
-		err := publisher.Connect(connectStr)
+		publisher := new(orapub.OraPub)
+		err := publisher.Connect(connectStr, 5)
 		assert.Nil(T, err)
 
 		specs, pollErr = publisher.PollEvents()
