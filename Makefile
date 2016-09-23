@@ -8,4 +8,5 @@ build:
 	go get github.com/golang/protobuf/proto
 	go get github.com/stretchr/testify/assert
 	go get github.com/xtracdev/oraeventstore
+	go get github.com/xtracdev/oraconn
 	gucumber
