@@ -32,6 +32,10 @@ type OraPub struct {
 
 var ErrNilEventProcessorField = errors.New("Registered event processor with one or more nil fields.")
 
+func ClearRegisteredEventProcessors() {
+	eventProcessors = make(map[string]EventProcessor)
+}
+
 func RegisterEventProcessor(name string, eventProcessor EventProcessor) error {
 	if eventProcessor.Processor == nil || eventProcessor.Initialize == nil {
 		return ErrNilEventProcessorField

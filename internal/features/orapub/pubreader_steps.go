@@ -21,6 +21,8 @@ func init() {
 	var pollErr error
 	var eventPublisher *orapub.OraPub
 
+	orapub.ClearRegisteredEventProcessors()
+
 	GlobalContext.BeforeAll(func() {
 		log.Info("Loading global context")
 		user = os.Getenv("FEED_DB_USER")

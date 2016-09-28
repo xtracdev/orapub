@@ -18,6 +18,8 @@ func init() {
 	var barCalled bool
 	var fooInitialized, barInitialized bool
 
+	orapub.ClearRegisteredEventProcessors()
+
 	var fooProcessor = orapub.EventProcessor{
 		Initialize: func(db *sql.DB) error {
 			fooInitialized = true
