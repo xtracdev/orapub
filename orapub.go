@@ -194,6 +194,8 @@ func (op *OraPub) RetrieveEventDetail(aggregateId string, version int) (*goes.Ev
 	return eventPtr, nil
 }
 
+//TODO - handle database disconnection errors, and maybe do a consecutive delay
+//backoff to not go too crazy with failure logging, etc.
 func (op *OraPub) ProcessEvents(loop bool) {
 	for {
 		log.Debug("start process events transaction")
@@ -201,7 +203,7 @@ func (op *OraPub) ProcessEvents(loop bool) {
 		if err != nil {
 			log.Warn(err.Error())
 			txn.Rollback()
-			break
+			continue
 		}
 
 
@@ -210,14 +212,14 @@ func (op *OraPub) ProcessEvents(loop bool) {
 		if err != nil {
 			log.Warn(err.Error())
 			txn.Rollback()
-			break
+			goto exitpt
 		}
 
 		if len(eventSpecs) == 0 {
 			log.Infof("Nothing to do... time for a 5 second sleep")
 			txn.Rollback()
 			time.Sleep(5 * time.Second)
-			break
+			goto exitpt
 		}
 
 		log.Debug("process events")
@@ -227,7 +229,7 @@ func (op *OraPub) ProcessEvents(loop bool) {
 			e, err := op.RetrieveEventDetail(eventContext.AggregateId, eventContext.Version)
 			if err != nil {
 				log.Warnf("Error reading event to process (%v): %s", eventContext, err)
-				continue
+				goto exitpt
 			}
 
 			for _, processor := range eventProcessors {
@@ -244,8 +246,12 @@ func (op *OraPub) ProcessEvents(loop bool) {
 
 		log.Debug("commit txn")
 		txn.Commit()
+
+exitpt:	
 		if loop != true {
 			break
+		} else {
+			continue
 		}
 	}
 }
