@@ -24,6 +24,7 @@ func init() {
 	orapub.ClearRegisteredEventProcessors()
 
 	GlobalContext.BeforeAll(func() {
+		log.SetLevel(log.DebugLevel)
 		log.Info("Loading global context")
 		user = os.Getenv("FEED_DB_USER")
 		if user == "" {
@@ -79,7 +80,7 @@ func init() {
 		err := publisher.Connect(connectStr, 5)
 		assert.Nil(T, err)
 
-		specs, pollErr = publisher.PollEvents()
+		specs, pollErr = publisher.PollEvents(nil)
 		assert.Nil(T, pollErr)
 
 		eventPublisher = publisher

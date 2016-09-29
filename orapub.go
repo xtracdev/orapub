@@ -8,6 +8,7 @@ import (
 	_ "github.com/mattn/go-oci8"
 	"github.com/xtracdev/goes"
 	"github.com/xtracdev/oraconn"
+	"time"
 )
 
 type EventProcessor struct {
@@ -85,11 +86,21 @@ func (op *OraPub) handleDBError(err error) {
 	}
 }
 
-func (op *OraPub) PollEvents() ([]EventSpec, error) {
+func (op *OraPub) PollEvents(tx *sql.Tx) ([]EventSpec, error) {
 	var eventSpecs []EventSpec
 
-	//Select a batch of events, but no more than 500
-	rows, err := op.db.Query(`select aggregate_id, version from publish where rownum < 501 order by version`)
+	if tx == nil {
+		var makeTxErr error
+		log.Warn("No TX provided to PollEvents - creating tx")
+		tx, makeTxErr = op.db.Begin()
+		if makeTxErr != nil {
+			return nil,makeTxErr
+		}
+		defer tx.Rollback()
+	}
+
+	//Select a batch of events, but no more than 100
+	rows, err := tx.Query(`select aggregate_id, version from publish where rownum < 101 order by version for update`)
 	if err != nil {
 		op.handleDBError(err)
 		return nil, err
@@ -116,6 +127,17 @@ func (op *OraPub) PollEvents() ([]EventSpec, error) {
 	}
 
 	return eventSpecs, err
+}
+
+func (op *OraPub) deleteEvent(tx *sql.Tx, es EventSpec) error {
+	_, err := tx.Exec("delete from publish where aggregate_id = :1 and version = :2",
+		es.AggregateId, es.Version)
+	if err != nil {
+		log.Warnf("Error deleting aggregate, version %s, %d: %s", es.AggregateId, es.Version, err.Error())
+		op.handleDBError(err)
+	}
+
+	return err
 }
 
 func (op *OraPub) DeleteProcessedEvents(specs []EventSpec) error {
@@ -170,4 +192,60 @@ func (op *OraPub) RetrieveEventDetail(aggregateId string, version int) (*goes.Ev
 	//log.Infof("Event read from db: %v", *eventPtr)
 
 	return eventPtr, nil
+}
+
+func (op *OraPub) ProcessEvents(loop bool) {
+	for {
+		log.Debug("start process events transaction")
+		txn, err := op.db.Begin()
+		if err != nil {
+			log.Warn(err.Error())
+			txn.Rollback()
+			break
+		}
+
+
+		log.Debug("poll for events")
+		eventSpecs, err := op.PollEvents(txn)
+		if err != nil {
+			log.Warn(err.Error())
+			txn.Rollback()
+			break
+		}
+
+		if len(eventSpecs) == 0 {
+			log.Infof("Nothing to do... time for a 5 second sleep")
+			txn.Rollback()
+			time.Sleep(5 * time.Second)
+			break
+		}
+
+		log.Debug("process events")
+		for _, eventContext := range eventSpecs {
+
+			log.Debugf("process %s:%d", eventContext.AggregateId, eventContext.Version)
+			e, err := op.RetrieveEventDetail(eventContext.AggregateId, eventContext.Version)
+			if err != nil {
+				log.Warnf("Error reading event to process (%v): %s", eventContext, err)
+				continue
+			}
+
+			for _, processor := range eventProcessors {
+				log.Debug("call processor")
+				procErr := processor.Processor(op.db.DB, e)
+				if procErr == nil {
+					op.deleteEvent(txn, eventContext)
+				} else {
+					log.Warnf("error processing event %v: %s", e, procErr.Error())
+				}
+			}
+
+		}
+
+		log.Debug("commit txn")
+		txn.Commit()
+		if loop != true {
+			break
+		}
+	}
 }

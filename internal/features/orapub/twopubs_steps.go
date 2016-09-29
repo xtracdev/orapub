@@ -24,10 +24,13 @@ func init() {
 	orapub.ClearRegisteredEventProcessors()
 
 	var fooProcessor = orapub.EventProcessor{
+		//TODO - take a variable number of interface{} args after db param
 		Initialize: func(db *sql.DB) error {
+			log.Info("initialize called")
 			return nil
 		},
 		Processor: func(db *sql.DB, event *goes.Event) error {
+			log.Info("processor called")
 			pubCount += 1
 			return nil
 		},
@@ -78,19 +81,13 @@ func init() {
 	When(`^The event is published$`, func() {
 		wg.Add(2)
 		go func() {
-			polledEventsSpec, err := pub1.PollEvents()
-			if assert.Nil(T,err) {
-				pubCount += len(polledEventsSpec)
-			}
+			pub1.ProcessEvents(false)
 			wg.Done()
 		}()
 
 
 		go func() {
-			polledEventsSpec, err := pub2.PollEvents()
-			if assert.Nil(T,err) {
-				pubCount += len(polledEventsSpec)
-			}
+			pub2.ProcessEvents(false)
 			wg.Done()
 		}()
 

@@ -37,3 +37,8 @@ for more significant functionality.
 
 (c) 2016 Fidelity Investments
 Licensed under the Apache License, Version 2.0
+
+### TODO
+
+* Move event polling, processing, and deleting inside orapub, not in es-data-pub.
+* PollEvents, DeleteProcessedEvents, and RetrieveEventDetail become unexported
