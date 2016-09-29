@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const consecutiveErrorsThreshold = 100
+
 type EventProcessor struct {
 	Initialize func(*sql.DB) error
 	Processor  func(db *sql.DB, e *goes.Event) error
@@ -24,6 +26,7 @@ type EventSpec struct {
 var eventProcessors map[string]EventProcessor
 
 var ErrNoEventProcessorsRegistered = errors.New("No event processors registered - exiting event processing loop")
+var ErrNotConnected = errors.New("Not connected to database - call connect first")
 
 //Hold onto the last error that caused the ProcessEvents loop to exit
 var loopExitError error
@@ -60,7 +63,7 @@ func (op *OraPub) extractDB() *sql.DB {
 	//handlers. A nil database connection makes sense for unit testing.
 	var db *sql.DB
 	if op.db != nil {
-		log.Warn("No database connection for InitializaeProcessors - this only makes sense for unit testing")
+		log.Warn("No database connection for InitializeProcessors - this only makes sense for unit testing")
 		db = op.db.DB
 	}
 
@@ -104,10 +107,13 @@ func (op *OraPub) Connect(connectStr string, maxTrys int) error {
 	return nil
 }
 
-func (op *OraPub) handleDBError(err error) {
+func (op *OraPub) handleConnectionError(err error) bool {
 	if oraconn.IsConnectionError(err) {
-		op.db.Reconnect(5)
+		err := op.db.Reconnect(5)
+		return err == nil
 	}
+
+	return false
 }
 
 func (op *OraPub) pollEvents(tx *sql.Tx) ([]EventSpec, error) {
@@ -126,7 +132,7 @@ func (op *OraPub) pollEvents(tx *sql.Tx) ([]EventSpec, error) {
 	//Select a batch of events, but no more than 100
 	rows, err := tx.Query(`select aggregate_id, version from publish where rownum < 101 order by version for update`)
 	if err != nil {
-		op.handleDBError(err)
+		op.handleConnectionError(err)
 		return nil, err
 	}
 
@@ -147,7 +153,7 @@ func (op *OraPub) pollEvents(tx *sql.Tx) ([]EventSpec, error) {
 
 	err = rows.Err()
 	if err != nil {
-		op.handleDBError(err)
+		op.handleConnectionError(err)
 	}
 
 	return eventSpecs, err
@@ -158,7 +164,7 @@ func (op *OraPub) deleteEvent(tx *sql.Tx, es EventSpec) error {
 		es.AggregateId, es.Version)
 	if err != nil {
 		log.Warnf("Error deleting aggregate, version %s, %d: %s", es.AggregateId, es.Version, err.Error())
-		op.handleDBError(err)
+		op.handleConnectionError(err)
 	}
 
 	return err
@@ -170,7 +176,7 @@ func (op *OraPub) deleteProcessedEvents(specs []EventSpec) error {
 			es.AggregateId, es.Version)
 		if err != nil {
 			log.Warnf("Error deleting aggregate, version %s, %d: %s", es.AggregateId, es.Version, err.Error())
-			op.handleDBError(err)
+			op.handleConnectionError(err)
 		}
 	}
 
@@ -181,7 +187,7 @@ func (op *OraPub) retrieveEventDetail(aggregateId string, version int) (*goes.Ev
 	row, err := op.db.Query("select typecode, payload from events where aggregate_id = :1 and version = :2",
 		aggregateId, version)
 	if err != nil {
-		op.handleDBError(err)
+		op.handleConnectionError(err)
 		return nil, err
 	}
 
@@ -202,7 +208,7 @@ func (op *OraPub) retrieveEventDetail(aggregateId string, version int) (*goes.Ev
 
 	err = row.Err()
 	if err != nil {
-		op.handleDBError(err)
+		op.handleConnectionError(err)
 		return nil, err
 	}
 
@@ -222,26 +228,35 @@ func (op *OraPub) retrieveEventDetail(aggregateId string, version int) (*goes.Ev
 //backoff to not go too crazy with failure logging, etc.
 func (op *OraPub) ProcessEvents(loop bool) {
 
+	var consecutiveErrors int
+
 	//Don't process events if there are no handlers registered to process them
 	if len(eventProcessors) == 0 {
 		loopExitError = ErrNoEventProcessorsRegistered
 		return
 	}
 
+	//If we enter this module unconnected, we should try to connect
+	if op.db == nil {
+		loopExitError = ErrNotConnected
+		return
+	}
+
 	for {
+		var loopErr error
+		var eventSpecs []EventSpec
+
 		log.Debug("start process events transaction")
-		txn, err := op.db.Begin()
-		if err != nil {
-			log.Warn(err.Error())
-			txn.Rollback()
-			continue
+		txn, loopErr := op.db.Begin()
+		if loopErr != nil {
+			log.Warn(loopErr.Error())
+			goto exitpt
 		}
 
 		log.Debug("poll for events")
-		eventSpecs, err := op.pollEvents(txn)
-		if err != nil {
-			log.Warn(err.Error())
-			txn.Rollback()
+		eventSpecs, loopErr = op.pollEvents(txn)
+		if loopErr != nil {
+			log.Warn(loopErr.Error())
 			goto exitpt
 		}
 
@@ -256,19 +271,19 @@ func (op *OraPub) ProcessEvents(loop bool) {
 		for _, eventContext := range eventSpecs {
 
 			log.Debugf("process %s:%d", eventContext.AggregateId, eventContext.Version)
-			e, err := op.retrieveEventDetail(eventContext.AggregateId, eventContext.Version)
-			if err != nil {
-				log.Warnf("Error reading event to process (%v): %s", eventContext, err)
+			e, loopErr := op.retrieveEventDetail(eventContext.AggregateId, eventContext.Version)
+			if loopErr != nil {
+				log.Warnf("Error reading event to process (%v): %s", eventContext, loopErr)
 				goto exitpt
 			}
 
-			for _, processor := range eventProcessors {
+			for p, processor := range eventProcessors {
 				log.Debug("call processor")
 				procErr := processor.Processor(op.db.DB, e)
 				if procErr == nil {
 					op.deleteEvent(txn, eventContext)
 				} else {
-					log.Warnf("error processing event %v: %s", e, procErr.Error())
+					log.Warnf("%s: error processing event %v: %s", p, e, procErr.Error())
 				}
 			}
 
@@ -276,8 +291,17 @@ func (op *OraPub) ProcessEvents(loop bool) {
 
 		log.Debug("commit txn")
 		txn.Commit()
+		consecutiveErrors = 0
 
 	exitpt:
+		if loopErr != nil {
+			consecutiveErrors += 1
+			txn.Rollback()
+			if op.handleConnectionError(loopErr) {
+				consecutiveErrors = 0
+			}
+		}
+
 		if loop != true {
 			break
 		} else {
