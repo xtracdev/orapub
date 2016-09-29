@@ -1,16 +1,16 @@
 package orapub
 
 import (
-	. "github.com/gucumber/gucumber"
-	"github.com/xtracdev/goes"
-	"github.com/xtracdev/orapub"
+	"database/sql"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
-	"database/sql"
+	. "github.com/gucumber/gucumber"
 	"github.com/stretchr/testify/assert"
-	"github.com/xtracdev/oraeventstore"
-	"os"
+	"github.com/xtracdev/goes"
 	"github.com/xtracdev/goes/sample/testagg"
+	"github.com/xtracdev/oraeventstore"
+	"github.com/xtracdev/orapub"
+	"os"
 	"sync"
 )
 
@@ -39,7 +39,7 @@ func init() {
 	Given(`^An event is published$`, func() {
 		os.Setenv(oraeventstore.EventPublishEnvVar, "1")
 
-		eventStore, esinitError = oraeventstore.NewOraEventStore(user,password,dbSvc, dbhost, dbPort)
+		eventStore, esinitError = oraeventstore.NewOraEventStore(user, password, dbSvc, dbhost, dbPort)
 		if esinitError != nil {
 			assert.Fail(T, "Error registering fooProcessor")
 			return
@@ -85,7 +85,6 @@ func init() {
 			wg.Done()
 		}()
 
-
 		go func() {
 			pub2.ProcessEvents(false)
 			wg.Done()
@@ -99,4 +98,3 @@ func init() {
 	})
 
 }
-

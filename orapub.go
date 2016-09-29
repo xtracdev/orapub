@@ -72,10 +72,10 @@ func (op *OraPub) InitializeProcessors() error {
 	return nil
 }
 
-func (op *OraPub) ProcessEvent(event *goes.Event) {
+func (op *OraPub) processEvent(event *goes.Event) {
 	db := op.extractDB()
 	for _, p := range eventProcessors {
-		err := p.Processor(db,event)
+		err := p.Processor(db, event)
 		if err != nil {
 			log.Warnf("Error processing event %v: %s", event, err.Error())
 		}
@@ -101,7 +101,7 @@ func (op *OraPub) handleDBError(err error) {
 	}
 }
 
-func (op *OraPub) PollEvents(tx *sql.Tx) ([]EventSpec, error) {
+func (op *OraPub) pollEvents(tx *sql.Tx) ([]EventSpec, error) {
 	var eventSpecs []EventSpec
 
 	if tx == nil {
@@ -109,7 +109,7 @@ func (op *OraPub) PollEvents(tx *sql.Tx) ([]EventSpec, error) {
 		log.Warn("No TX provided to PollEvents - creating tx")
 		tx, makeTxErr = op.db.Begin()
 		if makeTxErr != nil {
-			return nil,makeTxErr
+			return nil, makeTxErr
 		}
 		defer tx.Rollback()
 	}
@@ -155,7 +155,7 @@ func (op *OraPub) deleteEvent(tx *sql.Tx, es EventSpec) error {
 	return err
 }
 
-func (op *OraPub) DeleteProcessedEvents(specs []EventSpec) error {
+func (op *OraPub) deleteProcessedEvents(specs []EventSpec) error {
 	for _, es := range specs {
 		_, err := op.db.Exec("delete from publish where aggregate_id = :1 and version = :2",
 			es.AggregateId, es.Version)
@@ -168,7 +168,7 @@ func (op *OraPub) DeleteProcessedEvents(specs []EventSpec) error {
 	return nil
 }
 
-func (op *OraPub) RetrieveEventDetail(aggregateId string, version int) (*goes.Event, error) {
+func (op *OraPub) retrieveEventDetail(aggregateId string, version int) (*goes.Event, error) {
 	row, err := op.db.Query("select typecode, payload from events where aggregate_id = :1 and version = :2",
 		aggregateId, version)
 	if err != nil {
@@ -221,9 +221,8 @@ func (op *OraPub) ProcessEvents(loop bool) {
 			continue
 		}
 
-
 		log.Debug("poll for events")
-		eventSpecs, err := op.PollEvents(txn)
+		eventSpecs, err := op.pollEvents(txn)
 		if err != nil {
 			log.Warn(err.Error())
 			txn.Rollback()
@@ -241,7 +240,7 @@ func (op *OraPub) ProcessEvents(loop bool) {
 		for _, eventContext := range eventSpecs {
 
 			log.Debugf("process %s:%d", eventContext.AggregateId, eventContext.Version)
-			e, err := op.RetrieveEventDetail(eventContext.AggregateId, eventContext.Version)
+			e, err := op.retrieveEventDetail(eventContext.AggregateId, eventContext.Version)
 			if err != nil {
 				log.Warnf("Error reading event to process (%v): %s", eventContext, err)
 				goto exitpt
@@ -262,7 +261,7 @@ func (op *OraPub) ProcessEvents(loop bool) {
 		log.Debug("commit txn")
 		txn.Commit()
 
-exitpt:	
+	exitpt:
 		if loop != true {
 			break
 		} else {

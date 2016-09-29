@@ -1,10 +1,10 @@
 package orapub
 
 import (
-	"testing"
 	"database/sql"
-	"github.com/xtracdev/goes"
 	"github.com/stretchr/testify/assert"
+	"github.com/xtracdev/goes"
+	"testing"
 )
 
 var fooInitialized, barInitialized bool
@@ -64,9 +64,8 @@ func TestAllRegisteredInitialized(t *testing.T) {
 func TestAllRegisterProcessEvent(t *testing.T) {
 	if initTestState(t) {
 		pub := new(OraPub)
-		pub.ProcessEvent(nil)
+		pub.processEvent(nil)
 		assert.True(t, fooCalled, "foo not called")
 		assert.True(t, barCalled, "bar not called")
 	}
 }
-

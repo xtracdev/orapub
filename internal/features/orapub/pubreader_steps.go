@@ -1,17 +1,17 @@
 package orapub
 
 import (
+	"database/sql"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	. "github.com/gucumber/gucumber"
 	"github.com/stretchr/testify/assert"
+	"github.com/xtracdev/goes"
 	"github.com/xtracdev/goes/sample/testagg"
 	"github.com/xtracdev/oraeventstore"
 	"github.com/xtracdev/orapub"
 	"os"
 	"strings"
-	"database/sql"
-	"github.com/xtracdev/goes"
 )
 
 var user, password, dbhost, dbPort, dbSvc string
@@ -19,8 +19,6 @@ var configErrors []string
 
 func init() {
 	var aggregateID string
-	var specs []orapub.EventSpec
-	var pollErr error
 	var pubReadCount int
 	var pubReadEvents []*goes.Event
 	var publisher *orapub.OraPub
@@ -98,9 +96,6 @@ func init() {
 		err := publisher.Connect(connectStr, 5)
 		assert.Nil(T, err)
 
-		specs, pollErr = publisher.PollEvents(nil)
-		assert.Nil(T, pollErr)
-
 		orapub.RegisterEventProcessor("pubread", eventHandler)
 
 		publisher.ProcessEvents(false)
@@ -114,8 +109,8 @@ func init() {
 	And(`^the event details can be retrieved$`, func() {
 		for i := 0; i <= 0; i++ {
 			event := pubReadEvents[i]
-				assert.Equal(T, event.Source, aggregateID)
-				assert.Equal(T, event.Version, i + 1)
+			assert.Equal(T, event.Source, aggregateID)
+			assert.Equal(T, event.Version, i+1)
 		}
 
 	})
