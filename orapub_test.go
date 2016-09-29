@@ -69,3 +69,10 @@ func TestAllRegisterProcessEvent(t *testing.T) {
 		assert.True(t, barCalled, "bar not called")
 	}
 }
+
+func TestExitProcessingLoopWhenNoProcessorsRegistered(t *testing.T) {
+	ClearRegisteredEventProcessors()
+	pub := new(OraPub)
+	pub.ProcessEvents(false)
+	assert.Equal(t,ErrNoEventProcessorsRegistered, LoopExitError())
+}

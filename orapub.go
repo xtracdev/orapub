@@ -23,6 +23,15 @@ type EventSpec struct {
 
 var eventProcessors map[string]EventProcessor
 
+var ErrNoEventProcessorsRegistered = errors.New("No event processors registered - exiting event processing loop")
+
+//Hold onto the last error that caused the ProcessEvents loop to exit
+var loopExitError error
+
+func LoopExitError() error {
+	return loopExitError
+}
+
 func init() {
 	eventProcessors = make(map[string]EventProcessor)
 }
@@ -212,6 +221,13 @@ func (op *OraPub) retrieveEventDetail(aggregateId string, version int) (*goes.Ev
 //TODO - handle database disconnection errors, and maybe do a consecutive delay
 //backoff to not go too crazy with failure logging, etc.
 func (op *OraPub) ProcessEvents(loop bool) {
+
+	//Don't process events if there are no handlers registered to process them
+	if len(eventProcessors) == 0 {
+		loopExitError = ErrNoEventProcessorsRegistered
+		return
+	}
+
 	for {
 		log.Debug("start process events transaction")
 		txn, err := op.db.Begin()
