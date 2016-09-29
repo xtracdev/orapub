@@ -300,6 +300,11 @@ func (op *OraPub) ProcessEvents(loop bool) {
 			if op.handleConnectionError(loopErr) {
 				consecutiveErrors = 0
 			}
+
+			if consecutiveErrors > consecutiveErrorsThreshold {
+				loopExitError = loopErr
+				return
+			}
 		}
 
 		if loop != true {
