@@ -46,10 +46,24 @@ func RegisterEventProcessor(name string, eventProcessor EventProcessor) error {
 	return nil
 }
 
+func (op *OraPub) extractDB() *sql.DB {
+	//Grab the database connection to pass to the initialization and event processing
+	//handlers. A nil database connection makes sense for unit testing.
+	var db *sql.DB
+	if op.db != nil {
+		log.Warn("No database connection for InitializaeProcessors - this only makes sense for unit testing")
+		db = op.db.DB
+	}
+
+	return db
+}
+
 func (op *OraPub) InitializeProcessors() error {
+
+	db := op.extractDB()
 	for k, p := range eventProcessors {
 		log.Infof("Initializing %s", k)
-		err := p.Initialize(op.db.DB)
+		err := p.Initialize(db)
 		if err != nil {
 			return err
 		}
@@ -59,8 +73,9 @@ func (op *OraPub) InitializeProcessors() error {
 }
 
 func (op *OraPub) ProcessEvent(event *goes.Event) {
+	db := op.extractDB()
 	for _, p := range eventProcessors {
-		err := p.Processor(op.db.DB, event)
+		err := p.Processor(db,event)
 		if err != nil {
 			log.Warnf("Error processing event %v: %s", event, err.Error())
 		}
