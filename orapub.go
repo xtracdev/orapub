@@ -13,24 +13,30 @@ import (
 
 const consecutiveErrorsThreshold = 100
 
+//EventProcessor is implemented for hooking into the processing of the events
+//in the event store publish table
 type EventProcessor struct {
 	Initialize func(*sql.DB) error
 	Processor  func(db *sql.DB, e *goes.Event) error
 }
 
+//EventSpec is the specification of a published event
 type EventSpec struct {
 	AggregateId string
 	Version     int
 }
 
+//Event processors are registered at the package level
 var eventProcessors map[string]EventProcessor
 
 var ErrNoEventProcessorsRegistered = errors.New("No event processors registered - exiting event processing loop")
 var ErrNotConnected = errors.New("Not connected to database - call connect first")
+var ErrNilEventProcessorField = errors.New("Registered event processor with one or more nil fields.")
 
-//Hold onto the last error that caused the ProcessEvents loop to exit
+//loopExitError stores the last error that caused the ProcessEvents loop to exit
 var loopExitError error
 
+//LoopExitError is used to determine if an error caused the process event loop to exit.
 func LoopExitError() error {
 	return loopExitError
 }
@@ -39,16 +45,18 @@ func init() {
 	eventProcessors = make(map[string]EventProcessor)
 }
 
+//OraPub provides the ability to process the events in the event store publish table.
 type OraPub struct {
 	db *oraconn.OracleDB
 }
 
-var ErrNilEventProcessorField = errors.New("Registered event processor with one or more nil fields.")
-
+//ClearRegisteredEventProcessors clears out the registered event processors. This is useful when testing.
 func ClearRegisteredEventProcessors() {
 	eventProcessors = make(map[string]EventProcessor)
 }
 
+//RegisterEventProcessor registers an event processor with OraPub. Event processors registered
+//with OraPub are initialized then receive events when processing the events in the event table.
 func RegisterEventProcessor(name string, eventProcessor EventProcessor) error {
 	if eventProcessor.Processor == nil || eventProcessor.Initialize == nil {
 		return ErrNilEventProcessorField
@@ -70,6 +78,7 @@ func (op *OraPub) extractDB() *sql.DB {
 	return db
 }
 
+//InitializeProcessors initializes all the processors for registered event handlers.
 func (op *OraPub) InitializeProcessors() error {
 
 	db := op.extractDB()
@@ -84,6 +93,8 @@ func (op *OraPub) InitializeProcessors() error {
 	return nil
 }
 
+//processEvent invokes the Processor method with the given event on every EventProcessor
+//registered with OraPub
 func (op *OraPub) processEvent(event *goes.Event) {
 	db := op.extractDB()
 	for _, p := range eventProcessors {
@@ -94,7 +105,8 @@ func (op *OraPub) processEvent(event *goes.Event) {
 	}
 }
 
-//Connect to elcaro - connect string looks like user/password@//host:port/service
+//Connect creates the database connection with the given connection string and
+//max connection retrys.
 func (op *OraPub) Connect(connectStr string, maxTrys int) error {
 	db, err := oraconn.OpenAndConnect(connectStr, maxTrys)
 	if err != nil {
@@ -107,6 +119,9 @@ func (op *OraPub) Connect(connectStr string, maxTrys int) error {
 	return nil
 }
 
+//handleConnectionError determines if the given error is a connection error, and if so,
+//attempts to reconnect to the database. True is returned when the error indicates a connection
+//error, and the reconnect is successful.
 func (op *OraPub) handleConnectionError(err error) bool {
 	if oraconn.IsConnectionError(err) {
 		err := op.db.Reconnect(5)
@@ -116,6 +131,9 @@ func (op *OraPub) handleConnectionError(err error) bool {
 	return false
 }
 
+//pollEvents polls the publish table for events that have been published and are available for processing.
+//Note the use of select for update - this is the mechanism that allows multiple OraPub instances to be
+//active concurrently.
 func (op *OraPub) pollEvents(tx *sql.Tx) ([]EventSpec, error) {
 	var eventSpecs []EventSpec
 
@@ -159,6 +177,8 @@ func (op *OraPub) pollEvents(tx *sql.Tx) ([]EventSpec, error) {
 	return eventSpecs, err
 }
 
+//deleteEvent removes a published event that have been processed, or have at least attempted to be
+//processed.
 func (op *OraPub) deleteEvent(tx *sql.Tx, es EventSpec) error {
 	_, err := tx.Exec("delete from publish where aggregate_id = :1 and version = :2",
 		es.AggregateId, es.Version)
@@ -170,6 +190,8 @@ func (op *OraPub) deleteEvent(tx *sql.Tx, es EventSpec) error {
 	return err
 }
 
+//deleteProcessedEvents iterates through a list of event specs, deleting the associated event from the
+//publish table.
 func (op *OraPub) deleteProcessedEvents(specs []EventSpec) error {
 	for _, es := range specs {
 		_, err := op.db.Exec("delete from publish where aggregate_id = :1 and version = :2",
@@ -224,8 +246,11 @@ func (op *OraPub) retrieveEventDetail(aggregateId string, version int) (*goes.Ev
 	return eventPtr, nil
 }
 
-//TODO - handle database disconnection errors, and maybe do a consecutive delay
-//backoff to not go too crazy with failure logging, etc.
+//ProcessEvents processes the events in the publish table, sending each event to the registered
+//event processors. Event processing is done within a transaction, which is used to isolate the processing
+//of events amidst concurrent event processors. The transaction does not extend to the event processors - if they
+//return errors they will not get another shot at processing the event. Also, if an error occurs causing the
+//transaction to rollback, it is possible the event processor could be invoked with the same event at a later time.
 func (op *OraPub) ProcessEvents(loop bool) {
 
 	var consecutiveErrors int

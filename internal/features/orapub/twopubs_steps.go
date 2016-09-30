@@ -24,7 +24,6 @@ func init() {
 	orapub.ClearRegisteredEventProcessors()
 
 	var fooProcessor = orapub.EventProcessor{
-		//TODO - take a variable number of interface{} args after db param
 		Initialize: func(db *sql.DB) error {
 			log.Info("initialize called")
 			return nil

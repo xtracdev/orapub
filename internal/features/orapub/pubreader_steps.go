@@ -26,7 +26,6 @@ func init() {
 	orapub.ClearRegisteredEventProcessors()
 
 	var eventHandler = orapub.EventProcessor{
-		//TODO - take a variable number of interface{} args after db param
 		Initialize: func(db *sql.DB) error {
 			log.Info("pub read initialize called")
 			return nil
