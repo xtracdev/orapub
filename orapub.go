@@ -296,7 +296,10 @@ func (op *OraPub) ProcessEvents(loop bool) {
 	exitpt:
 		if loopErr != nil {
 			consecutiveErrors += 1
-			txn.Rollback()
+			if txn != nil {
+				txn.Rollback()
+			}
+
 			if op.handleConnectionError(loopErr) {
 				consecutiveErrors = 0
 			}
