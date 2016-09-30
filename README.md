@@ -6,6 +6,34 @@ This project provides code to process events to publish in the Oracle
 event store, with hooks for adding processing functions to be invoked
 for each published event.
 
+## Usage
+
+Packages that wish to process published events need to provide implementations
+of the `Initialize` and `Processor` function types in an `EventProcessor`
+structure, and register them with the package.
+
+Once everything is registered, an `OraPub` instance can be instantiated,
+its `Connect` method called, the processors initialized via the
+`InitializeProcessors` method, then the event loop instantiated using
+`ProcessEvents`.
+
+The [es-data-pub](https://github.com/xtracdev/es-data-pub) project performs
+all the steps needed to process published events. Using the es-data-pub
+project, all a packge needs to do for processing events is to 
+import the event processing packages, register them if they don't
+register themselves in their package init methods, then invoke the 
+es-data-pub ProcessEventMethod function.
+
+### Limitations
+
+The current implementation doesn't have a clean way to shutdown the
+processing loop.
+
+Event processing is done within a transaction, which is used to isolate the processing
+of events amidst concurrent event processors. The transaction does not extend to the event processors - if they
+return errors they will not get another shot at processing the event. Also, if an error occurs causing the
+transaction to rollback, it is possible the event processor could be invoked with the same event at a later time.
+
 ## Dependencies
 
 <pre>

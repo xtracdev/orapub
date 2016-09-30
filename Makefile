@@ -9,4 +9,5 @@ build:
 	go get github.com/stretchr/testify/assert
 	go get github.com/xtracdev/oraeventstore
 	go get github.com/xtracdev/oraconn
+	go test
 	gucumber

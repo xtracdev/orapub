@@ -1,10 +1,12 @@
 package orapub
 
 import (
+	"database/sql"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	. "github.com/gucumber/gucumber"
 	"github.com/stretchr/testify/assert"
+	"github.com/xtracdev/goes"
 	"github.com/xtracdev/goes/sample/testagg"
 	"github.com/xtracdev/oraeventstore"
 	"github.com/xtracdev/orapub"
@@ -17,11 +19,27 @@ var configErrors []string
 
 func init() {
 	var aggregateID string
-	var specs []orapub.EventSpec
-	var pollErr error
-	var eventPublisher *orapub.OraPub
+	var pubReadCount int
+	var pubReadEvents []*goes.Event
+	var publisher *orapub.OraPub
+
+	orapub.ClearRegisteredEventProcessors()
+
+	var eventHandler = orapub.EventProcessor{
+		Initialize: func(db *sql.DB) error {
+			log.Info("pub read initialize called")
+			return nil
+		},
+		Processor: func(db *sql.DB, event *goes.Event) error {
+			log.Info("pub read processor called")
+			pubReadCount += 1
+			pubReadEvents = append(pubReadEvents, event)
+			return nil
+		},
+	}
 
 	GlobalContext.BeforeAll(func() {
+		log.SetLevel(log.DebugLevel)
 		log.Info("Loading global context")
 		user = os.Getenv("FEED_DB_USER")
 		if user == "" {
@@ -73,44 +91,33 @@ func init() {
 
 	When(`^The publish table is polled for events$`, func() {
 		var connectStr = fmt.Sprintf("%s/%s@//%s:%s/%s", user, password, dbhost, dbPort, dbSvc)
-		publisher := new(orapub.OraPub)
+		publisher = new(orapub.OraPub)
 		err := publisher.Connect(connectStr, 5)
 		assert.Nil(T, err)
 
-		specs, pollErr = publisher.PollEvents()
-		assert.Nil(T, pollErr)
+		orapub.RegisterEventProcessor("pubread", eventHandler)
 
-		eventPublisher = publisher
+		publisher.ProcessEvents(false)
 	})
 
 	Then(`^The freshly stored events are returned$`, func() {
-		var foundIt bool
-		var aggCount int
-		for _, aid := range specs {
-			if aid.AggregateId == aggregateID {
-				foundIt = true
-				aggCount++
-			}
-		}
-
-		assert.True(T, foundIt)
-		assert.Equal(T, 3, aggCount)
+		assert.Equal(T, pubReadCount, 3)
+		assert.Equal(T, len(pubReadEvents), 3)
 	})
 
 	And(`^the event details can be retrieved$`, func() {
-		for i := 1; i <= 3; i++ {
-			event, err := eventPublisher.RetrieveEventDetail(aggregateID, i)
-			if assert.Nil(T, err) {
-				assert.Equal(T, event.Source, aggregateID)
-				assert.Equal(T, event.Version, i)
-			}
+		for i := 0; i <= 0; i++ {
+			event := pubReadEvents[i]
+			assert.Equal(T, event.Source, aggregateID)
+			assert.Equal(T, event.Version, i+1)
 		}
 
 	})
 
 	And(`^published events can be removed from the publish table$`, func() {
-		err := eventPublisher.DeleteProcessedEvents(specs)
-		assert.Nil(T, err, "Error when deleting processed events")
+		publisher.ProcessEvents(false)
+		assert.Equal(T, pubReadCount, 3)
+		assert.Equal(T, len(pubReadEvents), 3)
 	})
 
 }
