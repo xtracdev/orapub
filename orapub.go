@@ -296,6 +296,7 @@ func (op *OraPub) ProcessEvents(loop bool) {
 	exitpt:
 		if loopErr != nil {
 			consecutiveErrors += 1
+			time.Sleep(1 * time.Second) //Error delay
 			if txn != nil {
 				txn.Rollback()
 			}
