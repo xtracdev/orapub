@@ -71,10 +71,10 @@ func (op *OraPub) extractDB() *sql.DB {
 	//handlers. A nil database connection makes sense for unit testing.
 	var db *sql.DB
 	if op.db != nil {
-		log.Warn("No database connection for InitializeProcessors - this only makes sense for unit testing")
 		db = op.db.DB
+	} else {
+		log.Warn("No database connection for InitializeProcessors - this only makes sense for unit testing")
 	}
-
 	return db
 }
 
