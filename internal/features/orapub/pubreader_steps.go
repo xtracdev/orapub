@@ -79,9 +79,15 @@ func init() {
 		ta, _ := testagg.NewTestAgg("f", "b", "b")
 		ta.UpdateFoo("some new foo")
 		ta.UpdateFoo("i changed my mind")
-		aggregateID = ta.ID
+		aggregateID = ta.AggregateID
 
-		eventStore, err := oraeventstore.NewOraEventStore(user, password, dbSvc, dbhost, dbPort)
+		var connectStr = fmt.Sprintf("%s/%s@//%s:%s/%s", user, password, dbhost, dbPort, dbSvc)
+		db, err := sql.Open("oci8", connectStr)
+		if !assert.Nil(T, err) {
+			return
+		}
+
+		eventStore, err := oraeventstore.NewOraEventStore(db)
 		assert.Nil(T, err)
 		if assert.NotNil(T, eventStore) {
 			err = ta.Store(eventStore)

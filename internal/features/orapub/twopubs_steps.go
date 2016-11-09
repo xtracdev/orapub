@@ -38,7 +38,13 @@ func init() {
 	Given(`^An event is published$`, func() {
 		os.Setenv(oraeventstore.EventPublishEnvVar, "1")
 
-		eventStore, esinitError = oraeventstore.NewOraEventStore(user, password, dbSvc, dbhost, dbPort)
+		var connectStr = fmt.Sprintf("%s/%s@//%s:%s/%s", user, password, dbhost, dbPort, dbSvc)
+		db, err := sql.Open("oci8", connectStr)
+		if !assert.Nil(T, err) {
+			return
+		}
+
+		eventStore, esinitError = oraeventstore.NewOraEventStore(db)
 		if esinitError != nil {
 			assert.Fail(T, "Error registering fooProcessor")
 			return
