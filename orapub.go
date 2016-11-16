@@ -4,11 +4,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
+
 	log "github.com/Sirupsen/logrus"
-	_ "github.com/mattn/go-oci8"
 	"github.com/xtracdev/goes"
 	"github.com/xtracdev/oraconn"
-	"time"
 )
 
 const consecutiveErrorsThreshold = 100
