@@ -76,6 +76,24 @@ func init() {
 			return
 		}
 
+		//Get a db connection and clean out the publish table
+		var connectStr = fmt.Sprintf("%s/%s@//%s:%s/%s", user, password, dbhost, dbPort, dbSvc)
+		db, err := sql.Open("oci8", connectStr)
+		if !assert.Nil(T, err) {
+			return
+		}
+
+		r,err := db.Exec("delete from publish")
+		if !assert.Nil(T, err) {
+			return
+		}
+
+		rows, err := r.RowsAffected()
+		if err == nil {
+			log.Printf("delete %d rows", rows)
+		}
+
+		//Generate and publish events
 		os.Setenv("ES_PUBLISH_EVENTS", "1")
 
 		ta, _ := testagg.NewTestAgg("f", "b", "b")
@@ -83,11 +101,7 @@ func init() {
 		ta.UpdateFoo("i changed my mind")
 		aggregateID = ta.AggregateID
 
-		var connectStr = fmt.Sprintf("%s/%s@//%s:%s/%s", user, password, dbhost, dbPort, dbSvc)
-		db, err := sql.Open("oci8", connectStr)
-		if !assert.Nil(T, err) {
-			return
-		}
+
 
 		eventStore, err := oraeventstore.NewOraEventStore(db)
 		assert.Nil(T, err)
