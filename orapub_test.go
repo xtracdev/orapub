@@ -74,11 +74,16 @@ func TestExitProcessingLoopWhenNoProcessorsRegistered(t *testing.T) {
 	ClearRegisteredEventProcessors()
 	pub := new(OraPub)
 	pub.ProcessEvents(false)
-	assert.Equal(t, ErrNoEventProcessorsRegistered, LoopExitError())
+	assert.Equal(t, ErrNoEventProcessorsRegistered, pub.LoopExitError)
 }
 
 func TestBadConnectString(t *testing.T) {
 	pub := new(OraPub)
 	err := pub.Connect("nope", 1)
 	assert.NotNil(t, err)
+}
+
+func TestOraPub_IsHealth(t *testing.T) {
+	pub := new(OraPub)
+	assert.False(t, pub.IsHealth())
 }
