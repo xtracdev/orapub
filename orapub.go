@@ -33,21 +33,14 @@ var ErrNoEventProcessorsRegistered = errors.New("No event processors registered 
 var ErrNotConnected = errors.New("Not connected to database - call connect first")
 var ErrNilEventProcessorField = errors.New("Registered event processor with one or more nil fields.")
 
-//loopExitError stores the last error that caused the ProcessEvents loop to exit
-var loopExitError error
-
-//LoopExitError is used to determine if an error caused the process event loop to exit.
-func LoopExitError() error {
-	return loopExitError
-}
-
 func init() {
 	eventProcessors = make(map[string]EventProcessor)
 }
 
 //OraPub provides the ability to process the events in the event store publish table.
 type OraPub struct {
-	db *oraconn.OracleDB
+	db            *oraconn.OracleDB
+	LoopExitError error
 }
 
 //ClearRegisteredEventProcessors clears out the registered event processors. This is useful when testing.
@@ -252,18 +245,19 @@ func (op *OraPub) retrieveEventDetail(aggregateId string, version int) (*goes.Ev
 //return errors they will not get another shot at processing the event. Also, if an error occurs causing the
 //transaction to rollback, it is possible the event processor could be invoked with the same event at a later time.
 func (op *OraPub) ProcessEvents(loop bool) {
+	op.LoopExitError = nil
 
 	var consecutiveErrors int
 
 	//Don't process events if there are no handlers registered to process them
 	if len(eventProcessors) == 0 {
-		loopExitError = ErrNoEventProcessorsRegistered
+		op.LoopExitError = ErrNoEventProcessorsRegistered
 		return
 	}
 
 	//If we enter this module unconnected, we should try to connect
 	if op.db == nil {
-		loopExitError = ErrNotConnected
+		op.LoopExitError = ErrNotConnected
 		return
 	}
 
@@ -331,7 +325,7 @@ func (op *OraPub) ProcessEvents(loop bool) {
 			}
 
 			if consecutiveErrors > consecutiveErrorsThreshold {
-				loopExitError = loopErr
+				op.LoopExitError = loopErr
 				return
 			}
 		}
@@ -342,4 +336,19 @@ func (op *OraPub) ProcessEvents(loop bool) {
 			continue
 		}
 	}
+}
+
+func (op *OraPub) IsHealth() bool {
+	return op.LoopExitError == nil && op.isDbHealth()
+}
+
+func (op *OraPub) isDbHealth() bool {
+	if db := op.extractDB(); db != nil {
+		err := db.Ping()
+		if err != nil {
+			log.Info("Ping DB returns error: ", err)
+		}
+		return err == nil
+	}
+	return false
 }
