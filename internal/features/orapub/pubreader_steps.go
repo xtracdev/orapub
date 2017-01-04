@@ -83,7 +83,7 @@ func init() {
 			return
 		}
 
-		r,err := db.Exec("delete from publish")
+		r, err := db.Exec("delete from t_aepb_publish")
 		if !assert.Nil(T, err) {
 			return
 		}
@@ -100,8 +100,6 @@ func init() {
 		ta.UpdateFoo("some new foo")
 		ta.UpdateFoo("i changed my mind")
 		aggregateID = ta.AggregateID
-
-
 
 		eventStore, err := oraeventstore.NewOraEventStore(db)
 		assert.Nil(T, err)

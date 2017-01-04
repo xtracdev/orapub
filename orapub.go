@@ -141,7 +141,7 @@ func (op *OraPub) pollEvents(tx *sql.Tx) ([]EventSpec, error) {
 	}
 
 	//Select a batch of events, but no more than 100
-	rows, err := tx.Query(`select aggregate_id, version from publish where rownum < 101 order by version for update`)
+	rows, err := tx.Query(`select aggregate_id, version from t_aepb_publish where rownum < 101 order by version for update`)
 	if err != nil {
 		op.handleConnectionError(err)
 		return nil, err
@@ -173,7 +173,7 @@ func (op *OraPub) pollEvents(tx *sql.Tx) ([]EventSpec, error) {
 //deleteEvent removes a published event that have been processed, or have at least attempted to be
 //processed.
 func (op *OraPub) deleteEvent(tx *sql.Tx, es EventSpec) error {
-	_, err := tx.Exec("delete from publish where aggregate_id = :1 and version = :2",
+	_, err := tx.Exec("delete from t_aepb_publish where aggregate_id = :1 and version = :2",
 		es.AggregateId, es.Version)
 	if err != nil {
 		log.Warnf("Error deleting aggregate, version %s, %d: %s", es.AggregateId, es.Version, err.Error())
@@ -187,7 +187,7 @@ func (op *OraPub) deleteEvent(tx *sql.Tx, es EventSpec) error {
 //publish table.
 func (op *OraPub) deleteProcessedEvents(specs []EventSpec) error {
 	for _, es := range specs {
-		_, err := op.db.Exec("delete from publish where aggregate_id = :1 and version = :2",
+		_, err := op.db.Exec("delete from t_aepb_publish where aggregate_id = :1 and version = :2",
 			es.AggregateId, es.Version)
 		if err != nil {
 			log.Warnf("Error deleting aggregate, version %s, %d: %s", es.AggregateId, es.Version, err.Error())
@@ -199,7 +199,7 @@ func (op *OraPub) deleteProcessedEvents(specs []EventSpec) error {
 }
 
 func (op *OraPub) retrieveEventDetail(aggregateId string, version int) (*goes.Event, error) {
-	row, err := op.db.Query("select typecode, payload from events where aggregate_id = :1 and version = :2",
+	row, err := op.db.Query("select typecode, payload from t_aeev_events where aggregate_id = :1 and version = :2",
 		aggregateId, version)
 	if err != nil {
 		op.handleConnectionError(err)
