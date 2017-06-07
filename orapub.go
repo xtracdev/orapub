@@ -141,7 +141,7 @@ func (op *OraPub) pollEvents(tx *sql.Tx) ([]EventSpec, error) {
 	}
 
 	//Select a batch of events, but no more than 100
-	rows, err := tx.Query(`select aggregate_id, version from t_aepb_publish where rownum < 101 order by version for update`)
+	rows, err := tx.Query(`select aggregate_id, version from t_aepb_publish where rownum < 101 order by aggregate_id,version for update`)
 	if err != nil {
 		op.handleConnectionError(err)
 		return nil, err
